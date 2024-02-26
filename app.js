@@ -7,6 +7,7 @@ import { Strategy } from "passport-local";
 import GoogleStrategy from "passport-google-oauth2";
 import session from "express-session";
 import env from "dotenv";
+import { body, validationResult } from 'express-validator';
 
 const app = express();
 const port = 3001;
@@ -61,9 +62,41 @@ app.get("/api/logout", (req, res) => {
     });
 });
 
-app.post("/api/register", async (req, res) => {
+app.post("/api/register", [
+    body('email')
+        .trim()
+        .isEmail().withMessage('Inserisci un indirizzo email valido.')
+        .isLength({ max: 255 }).withMessage('L\'indirizzo email non puó contenere piú di 255 caratteri.'),
+
+    body('password')
+        .isLength({ min: 8 }).withMessage('La password deve contenere almeno 8 caratteri.')
+        .matches(/\d/).withMessage('La password deve contenere almeno un numero.')
+        .matches(/[a-z]/).withMessage('La password deve contenere almeno una lettera minuscola.')
+        .matches(/[A-Z]/).withMessage('La password deve contenere almeno una lettera maiuscola.')
+        .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('La password deve contenere almeno un simbolo speciale.'),
+
+    body('username')
+        .trim()
+        .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
+        .matches(/^[a-zA-Z0-9_]+$/).withMessage('L\'username può contenere solo lettere, numeri e underscore.'),
+
+    body('firstname')
+        .trim()
+        .isLength({ max: 50 }).withMessage('Il nome non puó contenere piú di 50 caratteri.')
+        .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.'),
+
+    body('lastname')
+        .trim().isLength({ max: 50 }).withMessage('Il cognome non puó contenere piú di 50 caratteri.')
+        .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il cognome può contenere solo lettere.')
+
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
     const { email, password, username, firstname, lastname } = req.body;
-    
+
     try {
         const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
             email,
