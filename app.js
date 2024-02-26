@@ -42,11 +42,11 @@ const db = new pg.Client({
 });
 db.connect();
 
-app.get('/api/message', (req, res) => {
-    res.json({ message: 'Hello World!' });
-});
-
 app.get('/api/status', (req, res) => {
+    if (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server durante il login. Riprova piú tardi." });
+    }
     res.json({ isAuthenticated: req.isAuthenticated() });
 });
 
@@ -54,7 +54,7 @@ app.get("/api/logout", (req, res) => {
     req.logout(function (err) {
         if (err) {
             console.error(err);
-            return res.status(500).json({ success: false, message: "Errore durante il logout." });
+            return res.status(500).json({ success: false, message: "Errore interno del server durante il logout. Riprova piú tardi." });
         }
         res.status(200).json({ success: true, message: "Logout effettuato con successo." });
 
@@ -72,27 +72,20 @@ app.post("/api/register", async (req, res) => {
         if (findUser.rows.length > 0) {
             return res.status(409).json({ message: "L'email inserita é giá in uso." }); 
         } else {
-            bcrypt.hash(password, saltRounds, async (err, hash) => {
-                if (err) {
-                    console.error("Error hashing password:", err);
-                } else {
-                    const result = await db.query(
-                    "INSERT INTO users (email, password, username, firstname, lastname) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-                    [email, hash, username, firstname, lastname]
-                    );
-                    const user = result.rows[0];
-                    req.login(user, (err) => {
-                        if (err) {
-                            console.error("Login error:", err);
-                            return res.status(500).json({ success: false, message: "Errore durante il login." });
-                        }
-                        res.status(201).json({ user: { id: user.id, email: user.email, username: user.username, firstname: user.firstname, lastname: user.lastname } });
-                    });
-                }
+            const hash = await bcrypt.hash(password, saltRounds);
+            const result = await db.query(
+                "INSERT INTO users (email, password, username, firstname, lastname) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+                [email, hash, username, firstname, lastname]
+            );
+            const user = result.rows[0];
+            req.login(user, (err) => {
+                console.error(err);
+                res.status(201).json({ user: { id: user.id, email: user.email, username: user.username, firstname: user.firstname, lastname: user.lastname } });
             });
         }
     } catch (err) {
-        console.log(err);
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
     }
 });
 
