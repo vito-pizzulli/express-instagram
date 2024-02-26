@@ -61,6 +61,7 @@ app.get("/api/logout", (req, res) => {
 app.post("/api/register", [
     body('email')
         .trim()
+        .normalizeEmail()
         .isEmail().withMessage('Inserisci un indirizzo email valido.')
         .isLength({ max: 255 }).withMessage('L\'indirizzo email non puó contenere piú di 255 caratteri.'),
 
@@ -73,6 +74,7 @@ app.post("/api/register", [
 
     body('username')
         .trim()
+        .toLowerCase()
         .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
         .matches(/^[a-zA-Z0-9_]+$/).withMessage('L\'username può contenere solo lettere, numeri e underscore.'),
 
