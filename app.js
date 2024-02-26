@@ -44,7 +44,7 @@ const db = new pg.Client({
 db.connect();
 
 app.get('/api/status', (req, res) => {
-    res.json({ isAuthenticated: req.isAuthenticated() });
+    res.json({ isAuthenticated: req.isAuthenticated(), user: req.user });
 });
 
 app.get("/api/logout", (req, res) => {
