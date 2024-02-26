@@ -44,10 +44,6 @@ const db = new pg.Client({
 db.connect();
 
 app.get('/api/status', (req, res) => {
-    if (err) {
-        console.error(err);
-        return res.status(500).json({ success: false, message: "Errore interno del server durante il login. Riprova piú tardi." });
-    }
     res.json({ isAuthenticated: req.isAuthenticated() });
 });
 
