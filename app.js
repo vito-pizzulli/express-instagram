@@ -65,7 +65,7 @@ app.post("/api/register", [
         .isLength({ max: 255 }).withMessage('L\'indirizzo email non puó contenere piú di 255 caratteri.'),
 
     body('password')
-        .isLength({ min: 8 }).withMessage('La password deve contenere almeno 8 caratteri.')
+        .isLength({ min: 8, max: 255 }).withMessage('La password deve contenere almeno 8 caratteri.')
         .matches(/\d/).withMessage('La password deve contenere almeno un numero.')
         .matches(/[a-z]/).withMessage('La password deve contenere almeno una lettera minuscola.')
         .matches(/[A-Z]/).withMessage('La password deve contenere almeno una lettera maiuscola.')
@@ -76,14 +76,10 @@ app.post("/api/register", [
         .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
         .matches(/^[a-zA-Z0-9_]+$/).withMessage('L\'username può contenere solo lettere, numeri e underscore.'),
 
-    body('firstname')
+    body('name')
         .trim()
         .isLength({ max: 50 }).withMessage('Il nome non puó contenere piú di 50 caratteri.')
-        .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.'),
-
-    body('lastname')
-        .trim().isLength({ max: 50 }).withMessage('Il cognome non puó contenere piú di 50 caratteri.')
-        .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il cognome può contenere solo lettere.')
+        .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.')
 
 ], async (req, res) => {
     const errors = validationResult(req);
@@ -91,7 +87,7 @@ app.post("/api/register", [
         return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, username, firstname, lastname } = req.body;
+    const { email, password, username, name } = req.body;
 
     try {
         const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
@@ -103,8 +99,8 @@ app.post("/api/register", [
         } else {
             const hash = await bcrypt.hash(password, saltRounds);
             const result = await db.query(
-                "INSERT INTO users (email, password, username, firstname, lastname) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-                [email, hash, username, firstname, lastname]
+                "INSERT INTO users (email, password, username, name) VALUES ($1, $2, $3, $4) RETURNING *",
+                [email, hash, username, name]
             );
             const user = result.rows[0];
             req.login(user, (err) => {
@@ -112,7 +108,7 @@ app.post("/api/register", [
                     console.error(err);
                     return res.status(500).json({ success: false, message: "Errore interno del server durante la registrazione. Riprova piú tardi." });
                 }
-                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: { id: user.id, email: user.email, username: user.username, firstname: user.firstname, lastname: user.lastname } });
+                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name } });
             });
         }
     } catch (err) {
