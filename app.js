@@ -53,7 +53,7 @@ app.get("/api/logout", (req, res) => {
             console.error(err);
             return res.status(500).json({ success: false, message: "Errore interno del server durante il logout. Riprova piú tardi." });
         }
-        res.status(200).json({ success: true, message: "Logout effettuato con successo." });
+        res.status(200).json({ success: true, message: "Logout effettuato con successo!" });
 
     });
 });
@@ -108,8 +108,11 @@ app.post("/api/register", [
             );
             const user = result.rows[0];
             req.login(user, (err) => {
-                console.error(err);
-                res.status(201).json({ user: { id: user.id, email: user.email, username: user.username, firstname: user.firstname, lastname: user.lastname } });
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ success: false, message: "Errore interno del server durante la registrazione. Riprova piú tardi." });
+                }
+                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: { id: user.id, email: user.email, username: user.username, firstname: user.firstname, lastname: user.lastname } });
             });
         }
     } catch (err) {
