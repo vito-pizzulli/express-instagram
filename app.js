@@ -51,7 +51,7 @@ app.get("/api/logout", (req, res) => {
     req.logout(function (err) {
         if (err) {
             console.error(err);
-            return res.status(500).json({ success: false, message: "Errore interno del server durante il logout. Riprova piú tardi." });
+            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
         }
         res.status(200).json({ success: true, message: "Logout effettuato con successo!" });
 
@@ -110,12 +110,50 @@ app.post("/api/register", [
             );
             const user = result.rows[0];
             req.login(user, (err) => {
+                
                 if (err) {
                     console.error(err);
-                    return res.status(500).json({ success: false, message: "Errore interno del server durante la registrazione. Riprova piú tardi." });
+                    return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
                 }
                 res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name } });
             });
+        }
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    }
+});
+
+app.post("/api/login", async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
+            email,
+        ]);
+        if (findUser.rows.length > 0) {
+            const user = findUser.rows[0];
+
+            bcrypt.compare(password, user.password, (err, isMatch) => {
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
+                }
+
+                if (isMatch) {
+                    req.login(user, (err) => {
+                        if (err) {
+                            console.error(err);
+                            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
+                        }
+                        res.status(200).json({ success: true, message: 'Login effettuato con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name } });
+                    });
+                } else {
+                    res.status(401).json({ success: false, message: 'Le credenziali inserite non sono corrette.' });
+                }
+            });
+        } else {
+            res.status(401).json({ success: false, message: 'Le credenziali inserite non sono corrette.' });
         }
     } catch (err) {
         console.error(err);
