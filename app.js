@@ -47,17 +47,6 @@ app.get('/api/status', (req, res) => {
     res.json({ isAuthenticated: req.isAuthenticated(), user: req.user });
 });
 
-app.get("/api/logout", (req, res) => {
-    req.logout(function (err) {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
-        }
-        res.status(200).json({ success: true, message: "Logout effettuato con successo!" });
-
-    });
-});
-
 app.post("/api/register", [
     body('email')
         .notEmpty().withMessage('Il campo email non puó essere vuoto.').bail()
@@ -141,10 +130,35 @@ app.post('/api/login', (req, res, next) => {
     })(req, res, next);
 });
 
-passport.use("local", new Strategy({
-    usernameField: 'email',
-    passwordField: 'password',
-}, async (email, password, cb) => {
+app.get("/api/logout", (req, res) => {
+    req.logout(function (err) {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+        }
+        res.status(200).json({ success: true, message: "Logout effettuato con successo!" });
+
+    });
+});
+
+app.get("/auth/google",
+    passport.authenticate("google", {
+        scope: ["profile", "email"],
+    })
+);
+
+app.get('/auth/google/callback', 
+    passport.authenticate('google', { failureRedirect: '/login' }),
+    (req, res) => {
+        res.redirect('http://localhost:3000');
+    }
+);
+
+passport.use("local",
+    new Strategy({
+        usernameField: 'email',
+        passwordField: 'password',
+    }, async (email, password, cb) => {
         try {
             const findUser = await db.query("SELECT * FROM users WHERE email = $1 ", [email]);
             if (findUser.rows.length > 0) {
@@ -168,7 +182,31 @@ passport.use("local", new Strategy({
                 return cb(null, false);
             }
         } catch (err) {
-            console.log(err);
+            console.error(err);
+            return cb(err);
+        }
+    })
+);
+
+passport.use("google",
+    new GoogleStrategy({
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: "http://localhost:3001/auth/google/callback",
+        userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
+    }, async (accessToken, refreshToken, profile, cb) => {
+        try {
+            const findUser = await db.query("SELECT * FROM users WHERE email = $1", [profile.email]);
+
+            if (findUser.rows.length === 0) {
+                const newUser = await db.query("INSERT INTO users (email, password) VALUES ($1, $2)", [profile.email, "google"]);
+                cb(null, newUser.rows[0]);
+            } else {
+                cb(null, findUser.rows[0]);
+            }
+
+        } catch (err) {
+            console.error(err);
             return cb(err);
         }
     })
