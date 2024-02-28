@@ -60,12 +60,14 @@ app.get("/api/logout", (req, res) => {
 
 app.post("/api/register", [
     body('email')
+        .notEmpty().withMessage('Il campo email non puó essere vuoto.').bail()
         .trim()
         .normalizeEmail()
         .isEmail().withMessage('Inserisci un indirizzo email valido.')
         .isLength({ max: 255 }).withMessage('L\'indirizzo email non puó contenere piú di 255 caratteri.'),
 
     body('password')
+        .notEmpty().withMessage('Il campo password non puó essere vuoto.').bail()
         .isLength({ min: 8, max: 255 }).withMessage('La password deve contenere almeno 8 caratteri.')
         .matches(/\d/).withMessage('La password deve contenere almeno un numero.')
         .matches(/[a-z]/).withMessage('La password deve contenere almeno una lettera minuscola.')
@@ -73,12 +75,14 @@ app.post("/api/register", [
         .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('La password deve contenere almeno un simbolo speciale.'),
 
     body('username')
+        .notEmpty().withMessage('Il campo username non puó essere vuoto.').bail()
         .trim()
         .toLowerCase()
         .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
         .matches(/^[a-zA-Z0-9_]+$/).withMessage('L\'username può contenere solo lettere, numeri e underscore.'),
 
     body('name')
+        .notEmpty().withMessage('Il campo nome non puó essere vuoto.').bail()
         .trim()
         .isLength({ max: 50 }).withMessage('Il nome non puó contenere piú di 50 caratteri.')
         .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.')
