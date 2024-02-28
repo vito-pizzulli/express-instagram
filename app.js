@@ -124,46 +124,55 @@ app.post("/api/register", [
     }
 });
 
-app.post("/api/login", async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ success: false, message: "É necessario compilare entrambi i campi." });
-    }
-
-    try {
-        const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
-            email,
-        ]);
-        if (findUser.rows.length > 0) {
-            const user = findUser.rows[0];
-
-            bcrypt.compare(password, user.password, (err, isMatch) => {
-                if (err) {
-                    console.error(err);
-                    return res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
-                }
-
-                if (isMatch) {
-                    req.login(user, (err) => {
-                        if (err) {
-                            console.error(err);
-                            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
-                        }
-                        res.status(200).json({ success: true, message: 'Login effettuato con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name } });
-                    });
-                } else {
-                    res.status(401).json({ success: false, message: 'Le credenziali inserite non sono corrette.' });
-                }
-            });
-        } else {
-            res.status(401).json({ success: false, message: 'Le credenziali inserite non sono corrette.' });
+app.post('/api/login', (req, res, next) => {
+    passport.authenticate('local', (err, user, info) => {
+        if (err) {
+            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi" });
         }
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
-    }
+        if (!user) {
+            return res.status(401).json({ success: false, message: "Le credenziali inserite non sono valide." });
+        }
+        req.login(user, (err) => {
+            if (err) {
+                return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+            }
+            return res.status(200).json({ success: true, message: 'Login effettuato con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name } });
+        });
+    })(req, res, next);
 });
+
+passport.use("local", new Strategy({
+    usernameField: 'email',
+    passwordField: 'password',
+}, async (email, password, cb) => {
+        try {
+            const findUser = await db.query("SELECT * FROM users WHERE email = $1 ", [email]);
+            if (findUser.rows.length > 0) {
+                const user = findUser.rows[0];
+                const storedHashedPassword = user.password;
+                bcrypt.compare(password, storedHashedPassword, (err, valid) => {
+
+                if (err) {
+                    console.error("Error comparing passwords:", err);
+                    return cb(err);
+                } else {
+
+                    if (valid) {
+                    return cb(null, user);
+                    } else {
+                    return cb(null, false);
+                    }
+                }
+                });
+            } else {
+                return cb(null, false);
+            }
+        } catch (err) {
+            console.log(err);
+            return cb(err);
+        }
+    })
+);
 
 passport.serializeUser((user, cb) => {
     cb(null, user.id);
