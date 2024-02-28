@@ -101,7 +101,7 @@ app.post("/api/register", [
         ]);
     
         if (findUser.rows.length > 0) {
-            return res.status(409).json({ message: "L'email inserita é giá in uso." }); 
+            return res.status(409).json({ success: false, message: "L'email inserita é giá in uso." }); 
         } else {
             const hash = await bcrypt.hash(password, saltRounds);
             const result = await db.query(
@@ -126,6 +126,10 @@ app.post("/api/register", [
 
 app.post("/api/login", async (req, res) => {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: "É necessario compilare entrambi i campi." });
+    }
 
     try {
         const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
