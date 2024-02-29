@@ -4,6 +4,7 @@ CREATE TABLE users (
     password VARCHAR(255) NOT NULL,
     username VARCHAR(30) UNIQUE,
     name VARCHAR(50),
+    profile_pic_url VARCHAR(255),
     bio VARCHAR(150)
 );
 
