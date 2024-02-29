@@ -8,11 +8,43 @@ import GoogleStrategy from "passport-google-oauth2";
 import session from "express-session";
 import env from "dotenv";
 import { body, validationResult } from 'express-validator';
+import path from 'path';
+import fs from 'fs';
+import multer from "multer";
+import sharp from "sharp";
 
 const app = express();
 const port = 3001;
 const saltRounds = 10;
 env.config();
+
+const uploadDirectory = './uploads';
+if (!fs.existsSync(uploadDirectory)) {
+    fs.mkdirSync(uploadDirectory, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    }
+});
+
+const fileFilter = (req, file, cb) => {
+    if (['image/jpeg', 'image/png'].includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error('Formato non supportato.'), false);
+    }
+};
+
+const upload = multer({ 
+    storage: storage, 
+    fileFilter: fileFilter,
+    limits: { fileSize: 1024 * 1024 * 5 } // 5MB
+});
 
 app.use(
     session({
@@ -33,6 +65,7 @@ app.use(cors({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+app.use('/uploads', express.static('uploads'));
 
 const db = new pg.Client({
     user: process.env.DB_USER,
@@ -47,7 +80,7 @@ app.get('/api/status', (req, res) => {
     res.json({ isAuthenticated: req.isAuthenticated(), user: req.user });
 });
 
-app.post("/api/register", [
+app.post("/api/register", upload.single('profile_pic_url'), [
     body('email')
         .notEmpty().withMessage('Il campo email non puó essere vuoto.').bail()
         .trim()
@@ -68,7 +101,7 @@ app.post("/api/register", [
         .trim()
         .toLowerCase()
         .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
-        .matches(/^[a-zA-Z0-9_]+$/).withMessage('L\'username può contenere solo lettere, numeri e underscore.'),
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('L\'username può contenere solo lettere, numeri, underscore e punti.'),
 
     body('name')
         .notEmpty().withMessage('Il campo nome non puó essere vuoto.').bail()
@@ -78,11 +111,35 @@ app.post("/api/register", [
 
 ], async (req, res) => {
     const errors = validationResult(req);
+    const { email, password, username, name } = req.body;
+
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password, username, name } = req.body;
+    if (req.file) {
+        const targetPath = `uploads/${username}${path.extname(req.file.originalname)}`;
+
+        try {
+            await sharp(req.file.path)
+                .resize(200, 200)
+                .toFormat("jpeg")
+                .jpeg({ quality: 90 })
+                .toFile(targetPath);
+
+                fs.unlink(req.file.path, (err) => {
+                    console.log('Origin file deleted successfully');
+                });
+
+            req.body.profileImagePath = targetPath;
+
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: "Errore durante il processing dell'immagine." });
+        }
+    }
+
+    const profileImagePath = req.body.profileImagePath;
 
     try {
         const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
@@ -94,8 +151,8 @@ app.post("/api/register", [
         } else {
             const hash = await bcrypt.hash(password, saltRounds);
             const result = await db.query(
-                "INSERT INTO users (email, password, username, name) VALUES ($1, $2, $3, $4) RETURNING *",
-                [email, hash, username, name]
+                "INSERT INTO users (email, password, username, name, profile_pic_url) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+                [email, hash, username, name, profileImagePath]
             );
             const user = result.rows[0];
             req.login(user, (err) => {
@@ -125,7 +182,7 @@ app.post('/api/login', (req, res, next) => {
             if (err) {
                 return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
             }
-            return res.status(200).json({ success: true, message: 'Login effettuato con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name } });
+            return res.status(200).json({ success: true, message: 'Login effettuato con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name, profile_pic_url: user.profile_pic_url } });
         });
     })(req, res, next);
 });
@@ -167,7 +224,7 @@ passport.use("local",
                 bcrypt.compare(password, storedHashedPassword, (err, valid) => {
 
                 if (err) {
-                    console.error("Error comparing passwords:", err);
+                    console.error(err);
                     return cb(err);
                 } else {
 
