@@ -28,7 +28,7 @@ const storage = multer.diskStorage({
         cb(null, 'uploads/');
     },
     filename: function (req, file, cb) {
-        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+        cb(null, 'image-' + Date.now() + path.extname(file.originalname));
     }
 });
 
@@ -128,7 +128,11 @@ app.post("/api/register", upload.single('profile_pic_url'), [
                 .toFile(targetPath);
 
                 fs.unlink(req.file.path, (err) => {
-                    console.log('Origin file deleted successfully');
+                    if (err) {
+                        console.error(err);
+                    } else {
+                        console.log('Origin file deleted successfully');
+                    }
                 });
 
             req.body.profileImagePath = targetPath;
@@ -161,7 +165,7 @@ app.post("/api/register", upload.single('profile_pic_url'), [
                     console.error(err);
                     return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
                 }
-                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name } });
+                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name, profile_pic_url: user.profile_pic_url } });
             });
         }
     } catch (err) {
