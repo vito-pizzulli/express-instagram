@@ -11,7 +11,6 @@ import { body, validationResult } from 'express-validator';
 import path from 'path';
 import fs from 'fs';
 import multer from "multer";
-import sharp from "sharp";
 
 const app = express();
 const port = 3001;
@@ -28,7 +27,9 @@ const storage = multer.diskStorage({
         cb(null, 'uploads/');
     },
     filename: function (req, file, cb) {
-        cb(null, 'image-' + Date.now() + path.extname(file.originalname));
+        const username = req.body.username;
+        const fileExtension = path.extname(file.originalname);
+        cb(null, `${username}${fileExtension}`);
     }
 });
 
@@ -43,7 +44,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ 
     storage: storage, 
     fileFilter: fileFilter,
-    limits: { fileSize: 1024 * 1024 * 5 } // 5MB
+    limits: { fileSize: 1024 * 1024 * 5 }
 });
 
 app.use(
@@ -112,38 +113,17 @@ app.post("/api/register", upload.single('profile_pic_url'), [
 ], async (req, res) => {
     const errors = validationResult(req);
     const { email, password, username, name } = req.body;
+    let profileImagePath;
 
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
 
     if (req.file) {
-        const targetPath = `uploads/${username}${path.extname(req.file.originalname)}`;
-
-        try {
-            await sharp(req.file.path)
-                .resize(200, 200)
-                .toFormat("jpeg")
-                .jpeg({ quality: 90 })
-                .toFile(targetPath);
-
-                fs.unlink(req.file.path, (err) => {
-                    if (err) {
-                        console.error(err);
-                    } else {
-                        console.log('Origin file deleted successfully');
-                    }
-                });
-
-            req.body.profileImagePath = targetPath;
-
-        } catch (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: "Errore durante il processing dell'immagine." });
-        }
+        profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+    } else {
+        return res.status(415).json({ success: false, message: "É necessario caricare un'immagine di profilo." }); 
     }
-
-    const profileImagePath = req.body.profileImagePath;
 
     try {
         const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
