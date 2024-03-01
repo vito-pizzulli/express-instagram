@@ -319,7 +319,7 @@ passport.use("google",
             const findUser = await db.query("SELECT * FROM users WHERE email = $1", [profile.email]);
 
             if (findUser.rows.length === 0) {
-                const newUser = await db.query("INSERT INTO users (email, password) VALUES ($1, $2)", [profile.email, "google"]);
+                const newUser = await db.query("INSERT INTO users (email, password) VALUES ($1, $2) RETURNING *", [profile.email, "google"]);
                 cb(null, newUser.rows[0]);
             } else {
                 cb(null, findUser.rows[0]);
