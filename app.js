@@ -145,12 +145,64 @@ app.post("/api/register", upload.single('profile_pic_url'), [
                     console.error(err);
                     return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
                 }
-                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: { id: user.id, email: user.email, username: user.username, name: user.name, profile_pic_url: user.profile_pic_url } });
+                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: user });
             });
         }
     } catch (err) {
         console.error(err);
         return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    }
+});
+
+app.post("/api/completeRegistration", upload.single('profile_pic_url'), [
+    body('username')
+        .notEmpty().withMessage('Il campo username non puó essere vuoto.').bail()
+        .trim()
+        .toLowerCase()
+        .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('L\'username può contenere solo lettere, numeri, underscore e punti.'),
+
+    body('name')
+        .notEmpty().withMessage('Il campo nome non puó essere vuoto.').bail()
+        .trim()
+        .isLength({ max: 50 }).withMessage('Il nome non puó contenere piú di 50 caratteri.')
+        .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.')
+
+], async (req, res) => {
+    const errors = validationResult(req);
+    const { email, username, name } = req.body;
+    let profileImagePath;
+
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    if (req.file) {
+        profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+    } else {
+        return res.status(415).json({ success: false, message: "É necessario caricare un'immagine di profilo." }); 
+    }
+
+    try {
+        const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
+            email,
+        ]);
+
+        if (findUser.rows.length === 0) {
+            return res.status(404).json({ message: "Utente non trovato." });
+        }
+    
+        const result = await db.query(
+            "UPDATE users SET username = $1, name = $2, profile_pic_url = $3 WHERE email = $4 RETURNING *",
+            [username, name, profileImagePath, email]
+        );
+
+        const user = result.rows[0];
+        res.status(201).json({ success: true, message: 'Profilo completato con successo!', user: user });
+        
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi" });
     }
 });
 
