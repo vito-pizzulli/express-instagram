@@ -111,12 +111,13 @@ app.post("/api/register", upload.single('profile_pic_url'), [
         .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.')
 
 ], async (req, res) => {
-    const errors = validationResult(req);
+    const validationErrors = validationResult(req);
+    let availabilityErrors = [];
     const { email, password, username, name } = req.body;
     let profileImagePath;
 
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+    if (!validationErrors.isEmpty()) {
+        return res.status(400).json({ errors: validationErrors.array() });
     }
 
     if (req.file) {
@@ -131,23 +132,36 @@ app.post("/api/register", upload.single('profile_pic_url'), [
         ]);
     
         if (findUser.rows.length > 0) {
-            return res.status(409).json({ success: false, message: "L'email inserita é giá in uso." }); 
-        } else {
-            const hash = await bcrypt.hash(password, saltRounds);
-            const result = await db.query(
-                "INSERT INTO users (email, password, username, name, profile_pic_url) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-                [email, hash, username, name, profileImagePath]
-            );
-            const user = result.rows[0];
-            req.login(user, (err) => {
-                
-                if (err) {
-                    console.error(err);
-                    return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
-                }
-                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: user });
-            });
+            availabilityErrors.push({ msg: `L'email ${email} é giá in uso.` });
         }
+
+        const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1", [
+            username,
+        ]);
+
+        if (checkUsernameAvailable.rows.length > 0) {
+            availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+        }
+
+        if (availabilityErrors.length > 0) {
+            return res.status(409).json({ errors: availabilityErrors });
+        }
+
+        const hash = await bcrypt.hash(password, saltRounds);
+        const result = await db.query(
+            "INSERT INTO users (email, password, username, name, profile_pic_url) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            [email, hash, username, name, profileImagePath]
+        );
+        const user = result.rows[0];
+        req.login(user, (err) => {
+            
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+            }
+            res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: user });
+        });
+
     } catch (err) {
         console.error(err);
         return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
@@ -169,12 +183,13 @@ app.post("/api/completeRegistration", upload.single('profile_pic_url'), [
         .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.')
 
 ], async (req, res) => {
-    const errors = validationResult(req);
+    const validationErrors = validationResult(req);
+    let availabilityErrors = [];
     const { email, username, name } = req.body;
     let profileImagePath;
 
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+    if (!validationErrors.isEmpty()) {
+        return res.status(400).json({ errors: validationErrors.array() });
     }
 
     if (req.file) {
@@ -184,12 +199,24 @@ app.post("/api/completeRegistration", upload.single('profile_pic_url'), [
     }
 
     try {
+        const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1", [
+            username,
+        ]);
+
+        if (checkUsernameAvailable.rows.length > 0) {
+            availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+        }
+
+        if (availabilityErrors.length > 0) {
+            return res.status(409).json({ errors: availabilityErrors });
+        }
+
         const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
             email,
         ]);
 
         if (findUser.rows.length === 0) {
-            return res.status(404).json({ message: "Utente non trovato." });
+            return res.status(404).json({ success: false, message: "L'utente non é stato trovato." }); 
         }
     
         const result = await db.query(
