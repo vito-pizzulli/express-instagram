@@ -307,6 +307,12 @@ app.post("/api/updateProfile", upload.single('profile_pic_url'), [
 
     if (req.file) {
         profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+
+        fs.unlink(req.user.profile_pic_url, (err) => {
+            if (err) {
+                console.error('Errore durante l\'eliminazione del file:', err);
+            }
+        });
     }
 
     try {
