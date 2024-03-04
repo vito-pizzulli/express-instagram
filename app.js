@@ -306,8 +306,12 @@ app.post("/api/updateProfile", upload.single('profile_pic_url'), [
     }
 
     if (req.file) {
-        profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
-
+        if (username) {
+            profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+        } else {
+            profileImagePath = `uploads/${req.user.username}${path.extname(req.file.originalname)}`;
+        }
+        
         fs.unlink(req.user.profile_pic_url, (err) => {
             if (err) {
                 console.error('Errore durante l\'eliminazione del file:', err);
@@ -340,32 +344,32 @@ app.post("/api/updateProfile", upload.single('profile_pic_url'), [
         let queryParams = [];
         let queryCount = 1;
 
-        if (email !== req.user.email) {
+        if (email.trim() !== '' && email !== req.user.email) {
             updateQuery += ` email = $${queryCount},`;
             queryParams.push(email);
             queryCount++;
         }
 
-        if (password) {
+        if (password.trim() !== '') {
             const hash = await bcrypt.hash(password, saltRounds);
             updateQuery += ` password = $${queryCount},`;
             queryParams.push(hash);
             queryCount++;
         }
 
-        if (username !== req.user.username) {
+        if (username.trim() !== '' && username !== req.user.username) {
             updateQuery += ` username = $${queryCount},`;
             queryParams.push(username);
             queryCount++;
         }
 
-        if (name !== req.user.name) {
+        if (name.trim() !== '' && name !== req.user.name) {
             updateQuery += ` name = $${queryCount},`;
             queryParams.push(name);
             queryCount++;
         }
 
-        if (profileImagePath) {
+        if (profileImagePath && profileImagePath !== req.user.profile_pic_url) {
             updateQuery += ` profile_pic_url = $${queryCount},`;
             queryParams.push(profileImagePath);
             queryCount++;
