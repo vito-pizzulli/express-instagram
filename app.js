@@ -127,11 +127,11 @@ app.post("/api/register", upload.single('profile_pic_url'), [
     }
 
     try {
-        const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
+        const checkMailAvailable = await db.query("SELECT * FROM users WHERE email = $1", [
             email,
         ]);
     
-        if (findUser.rows.length > 0) {
+        if (checkMailAvailable.rows.length > 0) {
             availabilityErrors.push({ msg: `L'email ${email} é giá in uso.` });
         }
 
@@ -259,6 +259,138 @@ app.get("/api/logout", (req, res) => {
         res.status(200).json({ success: true, message: "Logout effettuato con successo!" });
 
     });
+});
+
+app.post("/api/updateProfile", upload.single('profile_pic_url'), [
+    body('email')
+        .optional({ checkFalsy: true })
+        .trim()
+        .normalizeEmail()
+        .isEmail().withMessage('Inserisci un indirizzo email valido.')
+        .isLength({ max: 255 }).withMessage('L\'indirizzo email non puó contenere piú di 255 caratteri.'),
+
+    body('password')
+        .optional({ checkFalsy: true })
+        .isLength({ min: 8, max: 255 }).withMessage('La password deve contenere almeno 8 caratteri.')
+        .matches(/\d/).withMessage('La password deve contenere almeno un numero.')
+        .matches(/[a-z]/).withMessage('La password deve contenere almeno una lettera minuscola.')
+        .matches(/[A-Z]/).withMessage('La password deve contenere almeno una lettera maiuscola.')
+        .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('La password deve contenere almeno un simbolo speciale.'),
+
+    body('username')
+        .optional({ checkFalsy: true })
+        .trim()
+        .toLowerCase()
+        .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('L\'username può contenere solo lettere, numeri, underscore e punti.'),
+
+    body('name')
+        .optional({ checkFalsy: true })
+        .trim()
+        .isLength({ max: 50 }).withMessage('Il nome non puó contenere piú di 50 caratteri.')
+        .matches(/^[a-zA-Z]+(?: [a-zA-Z]+)*$/).withMessage('Il nome può contenere solo lettere.'),
+
+    body('bio')
+        .optional({ checkFalsy: true })
+        .isLength({ max: 150 }).withMessage('La bio non puó contenere piú di 150 caratteri.')
+
+], async (req, res) => {
+    const validationErrors = validationResult(req);
+    const { email, password, username, name, bio } = req.body;
+    const userId = req.user.id;
+    let profileImagePath;
+    let availabilityErrors = [];
+
+    if (!validationErrors.isEmpty()) {
+        return res.status(400).json({ errors: validationErrors.array() });
+    }
+
+    if (req.file) {
+        profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+    }
+
+    try {
+        const checkMailAvailable = await db.query("SELECT * FROM users WHERE email = $1 AND id != $2", [
+            email, userId
+        ]);
+
+        if (checkMailAvailable.rows.length > 0) {
+            availabilityErrors.push({ msg: `L'email ${email} é giá in uso.` });
+        }
+
+        const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1 AND id != $2", [
+            username, userId
+        ]);
+
+        if (checkUsernameAvailable.rows.length > 0) {
+            availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+        }
+
+        if (availabilityErrors.length > 0) {
+            return res.status(409).json({ errors: availabilityErrors });
+        }
+
+        let updateQuery = "UPDATE users SET";
+        let queryParams = [];
+        let queryCount = 1;
+
+        if (email !== req.user.email) {
+            updateQuery += ` email = $${queryCount},`;
+            queryParams.push(email);
+            queryCount++;
+        }
+
+        if (password) {
+            const hash = await bcrypt.hash(password, saltRounds);
+            updateQuery += ` password = $${queryCount},`;
+            queryParams.push(hash);
+            queryCount++;
+        }
+
+        if (username !== req.user.username) {
+            updateQuery += ` username = $${queryCount},`;
+            queryParams.push(username);
+            queryCount++;
+        }
+
+        if (name !== req.user.name) {
+            updateQuery += ` name = $${queryCount},`;
+            queryParams.push(name);
+            queryCount++;
+        }
+
+        if (profileImagePath) {
+            updateQuery += ` profile_pic_url = $${queryCount},`;
+            queryParams.push(profileImagePath);
+            queryCount++;
+        }
+
+        if (bio !== req.user.bio || bio === '') {
+            updateQuery += ` bio = $${queryCount},`;
+            queryParams.push(bio);
+            queryCount++;
+        }
+
+        if (queryCount === 1) {
+            return res.status(400).json({ success: false, message: "Nessuna modifica rilevata." });
+        }
+
+        updateQuery = updateQuery.slice(0, -1);
+
+        updateQuery += ` WHERE id = $${queryCount}`;
+        queryParams.push(userId);
+
+        await db.query(updateQuery, queryParams);
+
+        const updatedUser = await db.query("SELECT email, username, name, profile_pic_url, bio FROM users WHERE id = $1", [userId]);
+
+        const updatedUserInfo = updatedUser.rows[0];
+        res.status(200).json({ success: true, message: 'Modifiche salvate con successo!', user: updatedUserInfo });  
+
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    }
 });
 
 app.get("/auth/google",
