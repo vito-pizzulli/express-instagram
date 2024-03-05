@@ -375,7 +375,7 @@ app.post("/api/updateProfile", upload.single('profile_pic_url'), [
             queryCount++;
         }
 
-        if (bio !== req.user.bio || bio === '') {
+        if (bio !== req.user.bio || (bio === '' && req.user.bio !== '')) {
             updateQuery += ` bio = $${queryCount},`;
             queryParams.push(bio);
             queryCount++;
