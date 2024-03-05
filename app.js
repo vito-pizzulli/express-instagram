@@ -11,20 +11,38 @@ import { body, validationResult } from 'express-validator';
 import path from 'path';
 import fs from 'fs';
 import multer from "multer";
+import moment from "moment";
 
 const app = express();
 const port = 3001;
 const saltRounds = 10;
 env.config();
 
-const uploadDirectory = './uploads';
-if (!fs.existsSync(uploadDirectory)) {
-    fs.mkdirSync(uploadDirectory, { recursive: true });
+const usersUploadDirectory = './uploads/users';
+const postsUploadDirectory = './uploads/posts';
+
+if (!fs.existsSync(usersUploadDirectory)) {
+    fs.mkdirSync(usersUploadDirectory, { recursive: true });
 }
 
-const storage = multer.diskStorage({
+if (!fs.existsSync(postsUploadDirectory)) {
+    fs.mkdirSync(postsUploadDirectory, { recursive: true });
+}
+
+const usersStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/');
+        cb(null, 'uploads/users');
+    },
+    filename: function (req, file, cb) {
+        const username = req.body.username;
+        const fileExtension = path.extname(file.originalname);
+        cb(null, `${username}${fileExtension}`);
+    }
+});
+
+const postsStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/posts');
     },
     filename: function (req, file, cb) {
         const username = req.body.username;
@@ -41,8 +59,14 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-const upload = multer({ 
-    storage: storage, 
+const usersUpload = multer({ 
+    storage: usersStorage, 
+    fileFilter: fileFilter,
+    limits: { fileSize: 1024 * 1024 * 5 }
+});
+
+const postsUpload = multer({ 
+    storage: postsStorage, 
     fileFilter: fileFilter,
     limits: { fileSize: 1024 * 1024 * 5 }
 });
@@ -66,7 +90,8 @@ app.use(cors({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads/users', express.static('uploads/users'));
+app.use('/uploads/posts', express.static('uploads/posts'));
 
 const db = new pg.Client({
     user: process.env.DB_USER,
@@ -81,7 +106,7 @@ app.get('/api/status', (req, res) => {
     res.json({ isAuthenticated: req.isAuthenticated(), user: req.user });
 });
 
-app.post("/api/register", upload.single('profile_pic_url'), [
+app.post('/api/register', usersUpload.single('profile_pic_url'), [
     body('email')
         .notEmpty().withMessage('Il campo email non puó essere vuoto.').bail()
         .trim()
@@ -121,7 +146,7 @@ app.post("/api/register", upload.single('profile_pic_url'), [
     }
 
     if (req.file) {
-        profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+        profileImagePath = `uploads/users/${username}${path.extname(req.file.originalname)}`;
     } else {
         return res.status(415).json({ success: false, message: "É necessario caricare un'immagine di profilo." }); 
     }
@@ -168,7 +193,7 @@ app.post("/api/register", upload.single('profile_pic_url'), [
     }
 });
 
-app.post("/api/completeRegistration", upload.single('profile_pic_url'), [
+app.post('/api/completeRegistration', usersUpload.single('profile_pic_url'), [
     body('username')
         .notEmpty().withMessage('Il campo username non puó essere vuoto.').bail()
         .trim()
@@ -193,7 +218,7 @@ app.post("/api/completeRegistration", upload.single('profile_pic_url'), [
     }
 
     if (req.file) {
-        profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+        profileImagePath = `uploads/users/${username}${path.extname(req.file.originalname)}`;
     } else {
         return res.status(415).json({ success: false, message: "É necessario caricare un'immagine di profilo." }); 
     }
@@ -250,7 +275,7 @@ app.post('/api/login', (req, res, next) => {
     })(req, res, next);
 });
 
-app.get("/api/logout", (req, res) => {
+app.get('/api/logout', (req, res) => {
     req.logout(function (err) {
         if (err) {
             console.error(err);
@@ -261,7 +286,7 @@ app.get("/api/logout", (req, res) => {
     });
 });
 
-app.post("/api/updateProfile", upload.single('profile_pic_url'), [
+app.post('/api/updateProfile', usersUpload.single('profile_pic_url'), [
     body('email')
         .optional({ checkFalsy: true })
         .trim()
@@ -307,9 +332,9 @@ app.post("/api/updateProfile", upload.single('profile_pic_url'), [
 
     if (req.file) {
         if (username) {
-            profileImagePath = `uploads/${username}${path.extname(req.file.originalname)}`;
+            profileImagePath = `uploads/users/${username}${path.extname(req.file.originalname)}`;
         } else {
-            profileImagePath = `uploads/${req.user.username}${path.extname(req.file.originalname)}`;
+            profileImagePath = `uploads/users/${req.user.username}${path.extname(req.file.originalname)}`;
         }
         
         fs.unlink(req.user.profile_pic_url, (err) => {
@@ -403,7 +428,50 @@ app.post("/api/updateProfile", upload.single('profile_pic_url'), [
     }
 });
 
-app.get("/auth/google",
+app.post('/api/addPost', postsUpload.single('image_url'), [
+    body('description')
+        .optional({ checkFalsy: true })
+        .isLength({ max: 255 }).withMessage('La bio non puó contenere piú di 255 caratteri.'),
+
+    body('location')
+        .optional({ checkFalsy: true })
+        .isLength({ max: 255 }).withMessage('Il luogo non puó contenere piú di 255 caratteri.')
+
+], async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).send("L'utente non è autenticato.");
+    }
+
+    const validationErrors = validationResult(req);
+    const { description, location } = req.body;
+    const user_id = req.user.id;
+    let postImagePath;
+
+    if (!validationErrors.isEmpty()) {
+        return res.status(400).json({ errors: validationErrors.array() });
+    }
+
+    if (req.file) {
+        postImagePath = `uploads/posts/${req.user.username}${moment().format('DDMMYYYY_HHmmss')}${path.extname(req.file.originalname)}`;
+    } else {
+        return res.status(415).json({ success: false, message: "É necessario caricare un'immagine per pubblicare il post." }); 
+    }
+
+    try {
+        const result = await db.query(
+            'INSERT INTO posts (user_id, image_url, description, location) VALUES ($1, $2, $3, $4) RETURNING *',
+            [user_id, postImagePath, description, location]);
+        const post = result.rows[0];
+
+        res.status(201).json({ success: true, message: 'Pubblicazione effettuata con successo!', post: post });
+
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    }
+});
+
+app.get('/auth/google',
     passport.authenticate("google", {
         scope: ["profile", "email"],
     })
