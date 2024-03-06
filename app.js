@@ -12,6 +12,7 @@ import path from 'path';
 import fs from 'fs';
 import multer from "multer";
 import moment from "moment";
+import Jimp from "jimp";
 
 const app = express();
 const port = 3001;
@@ -29,28 +30,7 @@ if (!fs.existsSync(postsUploadDirectory)) {
     fs.mkdirSync(postsUploadDirectory, { recursive: true });
 }
 
-const usersStorage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/users');
-    },
-    filename: function (req, file, cb) {
-        const username = req.body.username;
-        const fileExtension = path.extname(file.originalname);
-        cb(null, `${username}${fileExtension}`);
-    }
-});
-
-const postsStorage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/posts');
-    },
-    filename: function (req, file, cb) {
-        const username = req.user.username;
-        const randomDigits = moment().format('DDMMYYYY_HHmmss')
-        const fileExtension = path.extname(file.originalname);
-        cb(null, `${username}_${randomDigits}${fileExtension}`);
-    }
-});
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     if (['image/jpeg', 'image/png'].includes(file.mimetype)) {
@@ -60,14 +40,8 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-const usersUpload = multer({ 
-    storage: usersStorage, 
-    fileFilter: fileFilter,
-    limits: { fileSize: 1024 * 1024 * 5 }
-});
-
-const postsUpload = multer({ 
-    storage: postsStorage, 
+const upload = multer({ 
+    storage: storage, 
     fileFilter: fileFilter,
     limits: { fileSize: 1024 * 1024 * 5 }
 });
@@ -107,7 +81,7 @@ app.get('/api/status', (req, res) => {
     res.json({ isAuthenticated: req.isAuthenticated(), user: req.user });
 });
 
-app.post('/api/register', usersUpload.single('profile_pic_url'), [
+app.post('/api/register', upload.single('profile_pic_url'), [
     body('email')
         .notEmpty().withMessage('Il campo email non puó essere vuoto.').bail()
         .trim()
@@ -140,61 +114,62 @@ app.post('/api/register', usersUpload.single('profile_pic_url'), [
     const validationErrors = validationResult(req);
     let availabilityErrors = [];
     const { email, password, username, name } = req.body;
-    let profileImagePath;
 
     if (!validationErrors.isEmpty()) {
         return res.status(400).json({ errors: validationErrors.array() });
     }
 
     if (req.file) {
-        profileImagePath = `uploads/users/${username}${path.extname(req.file.originalname)}`;
+        try {
+            const checkMailAvailable = await db.query("SELECT * FROM users WHERE email = $1", [
+                email,
+            ]);
+        
+            if (checkMailAvailable.rows.length > 0) {
+                availabilityErrors.push({ msg: `L'email ${email} é giá in uso.` });
+            }
+    
+            const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1", [
+                username,
+            ]);
+    
+            if (checkUsernameAvailable.rows.length > 0) {
+                availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+            }
+    
+            if (availabilityErrors.length > 0) {
+                return res.status(409).json({ errors: availabilityErrors });
+            }
+
+            const image = await Jimp.read(req.file.buffer);
+            const imagePath = `uploads/users/${username}.jpg`;
+            await image.writeAsync(imagePath);
+    
+            const hash = await bcrypt.hash(password, saltRounds);
+            const result = await db.query(
+                "INSERT INTO users (email, password, username, name, profile_pic_url) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+                [email, hash, username, name, imagePath]
+            );
+            const user = result.rows[0];
+            req.login(user, (err) => {
+                
+                if (err) {
+                    console.error(err);
+                    return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+                }
+                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: user });
+            });
+    
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+        }
     } else {
         return res.status(415).json({ success: false, message: "É necessario caricare un'immagine di profilo." }); 
     }
-
-    try {
-        const checkMailAvailable = await db.query("SELECT * FROM users WHERE email = $1", [
-            email,
-        ]);
-    
-        if (checkMailAvailable.rows.length > 0) {
-            availabilityErrors.push({ msg: `L'email ${email} é giá in uso.` });
-        }
-
-        const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1", [
-            username,
-        ]);
-
-        if (checkUsernameAvailable.rows.length > 0) {
-            availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
-        }
-
-        if (availabilityErrors.length > 0) {
-            return res.status(409).json({ errors: availabilityErrors });
-        }
-
-        const hash = await bcrypt.hash(password, saltRounds);
-        const result = await db.query(
-            "INSERT INTO users (email, password, username, name, profile_pic_url) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            [email, hash, username, name, profileImagePath]
-        );
-        const user = result.rows[0];
-        req.login(user, (err) => {
-            
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
-            }
-            res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: user });
-        });
-
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
-    }
 });
 
-app.post('/api/completeRegistration', usersUpload.single('profile_pic_url'), [
+app.post('/api/completeRegistration', upload.single('profile_pic_url'), [
     body('username')
         .notEmpty().withMessage('Il campo username non puó essere vuoto.').bail()
         .trim()
@@ -212,50 +187,51 @@ app.post('/api/completeRegistration', usersUpload.single('profile_pic_url'), [
     const validationErrors = validationResult(req);
     let availabilityErrors = [];
     const { email, username, name } = req.body;
-    let profileImagePath;
 
     if (!validationErrors.isEmpty()) {
         return res.status(400).json({ errors: validationErrors.array() });
     }
 
     if (req.file) {
-        profileImagePath = `uploads/users/${username}${path.extname(req.file.originalname)}`;
+        try {
+            const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1", [
+                username,
+            ]);
+    
+            if (checkUsernameAvailable.rows.length > 0) {
+                availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+            }
+    
+            if (availabilityErrors.length > 0) {
+                return res.status(409).json({ errors: availabilityErrors });
+            }
+    
+            const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
+                email,
+            ]);
+    
+            if (findUser.rows.length === 0) {
+                return res.status(404).json({ success: false, message: "L'utente non é stato trovato." }); 
+            }
+
+            const image = await Jimp.read(req.file.buffer);
+            const imagePath = `uploads/users/${username}.jpg`;
+            await image.writeAsync(imagePath);
+        
+            const result = await db.query(
+                "UPDATE users SET username = $1, name = $2, profile_pic_url = $3 WHERE email = $4 RETURNING *",
+                [username, name, imagePath, email]
+            );
+    
+            const user = result.rows[0];
+            res.status(201).json({ success: true, message: 'Profilo completato con successo!', user: user });
+            
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi" });
+        }
     } else {
         return res.status(415).json({ success: false, message: "É necessario caricare un'immagine di profilo." }); 
-    }
-
-    try {
-        const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1", [
-            username,
-        ]);
-
-        if (checkUsernameAvailable.rows.length > 0) {
-            availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
-        }
-
-        if (availabilityErrors.length > 0) {
-            return res.status(409).json({ errors: availabilityErrors });
-        }
-
-        const findUser = await db.query("SELECT * FROM users WHERE email = $1", [
-            email,
-        ]);
-
-        if (findUser.rows.length === 0) {
-            return res.status(404).json({ success: false, message: "L'utente non é stato trovato." }); 
-        }
-    
-        const result = await db.query(
-            "UPDATE users SET username = $1, name = $2, profile_pic_url = $3 WHERE email = $4 RETURNING *",
-            [username, name, profileImagePath, email]
-        );
-
-        const user = result.rows[0];
-        res.status(201).json({ success: true, message: 'Profilo completato con successo!', user: user });
-        
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi" });
     }
 });
 
@@ -287,7 +263,7 @@ app.get('/api/logout', (req, res) => {
     });
 });
 
-app.post('/api/updateProfile', usersUpload.single('profile_pic_url'), [
+app.post('/api/updateProfile', upload.single('profile_pic_url'), [
     body('email')
         .optional({ checkFalsy: true })
         .trim()
@@ -324,8 +300,8 @@ app.post('/api/updateProfile', usersUpload.single('profile_pic_url'), [
     const validationErrors = validationResult(req);
     const { email, password, username, name, bio } = req.body;
     const userId = req.user.id;
-    let profileImagePath;
     let availabilityErrors = [];
+    let imagePath;
 
     if (!validationErrors.isEmpty()) {
         return res.status(400).json({ errors: validationErrors.array() });
@@ -333,16 +309,26 @@ app.post('/api/updateProfile', usersUpload.single('profile_pic_url'), [
 
     if (req.file) {
         if (username) {
-            profileImagePath = `uploads/users/${username}${path.extname(req.file.originalname)}`;
+            imagePath = `uploads/users/${username}.jpg`;
         } else {
-            profileImagePath = `uploads/users/${req.user.username}${path.extname(req.file.originalname)}`;
+            imagePath = `uploads/users/${req.user.username}.jpg`;
         }
-        
-        fs.unlink(req.user.profile_pic_url, (err) => {
-            if (err) {
-                console.error('Errore durante l\'eliminazione del file:', err);
-            }
-        });
+
+        try {
+            const image = await Jimp.read(req.file.buffer);
+            await image.writeAsync(imagePath);
+
+            if (imagePath !== req.user.profile_pic_url) {
+                fs.unlink(req.user.profile_pic_url, (err) => {
+                    if (err) {
+                        console.error('Errore durante l\'eliminazione del file:', err);
+                    }
+                });
+            };
+
+        } catch {
+            console.error('Errore durante il processing dell\'immagine:', err);
+        }
     }
 
     try {
@@ -364,6 +350,17 @@ app.post('/api/updateProfile', usersUpload.single('profile_pic_url'), [
 
         if (availabilityErrors.length > 0) {
             return res.status(409).json({ errors: availabilityErrors });
+        }
+
+        if (username !== req.user.profile_pic_url && !req.file) {
+            const oldPath = req.user.profile_pic_url;
+            const newPath = `uploads/users/${username}.jpg`;
+            fs.rename(oldPath, newPath, (err) => {
+                if (err) {
+                    console.error('Errore durante la rinomina del file:', err);
+                }
+            });
+            imagePath = newPath;
         }
 
         let updateQuery = "UPDATE users SET";
@@ -395,9 +392,9 @@ app.post('/api/updateProfile', usersUpload.single('profile_pic_url'), [
             queryCount++;
         }
 
-        if (profileImagePath && profileImagePath !== req.user.profile_pic_url) {
+        if (imagePath) {
             updateQuery += ` profile_pic_url = $${queryCount},`;
-            queryParams.push(profileImagePath);
+            queryParams.push(imagePath);
             queryCount++;
         }
 
@@ -440,7 +437,7 @@ app.get('/api/posts', async (req, res) => {
     };
 });
 
-app.post('/api/addPost', postsUpload.single('image_url'), [
+app.post('/api/addPost', upload.single('image_url'), [
     body('description')
         .optional({ checkFalsy: true })
         .isLength({ max: 255 }).withMessage('La bio non puó contenere piú di 255 caratteri.'),
@@ -453,29 +450,31 @@ app.post('/api/addPost', postsUpload.single('image_url'), [
     const validationErrors = validationResult(req);
     const { description, location } = req.body;
     const user_id = req.user.id;
-    let postImagePath;
 
     if (!validationErrors.isEmpty()) {
         return res.status(400).json({ errors: validationErrors.array() });
     }
 
     if (req.file) {
-        postImagePath = `uploads/posts/${req.user.username}_${moment().format('DDMMYYYY_HHmmss')}${path.extname(req.file.originalname)}`;
+        try {
+            const image = await Jimp.read(req.file.buffer);
+            const imagePath = `uploads/posts/${req.user.username}_${moment().format('DDMMYYYY_HHmmss')}.jpg`;
+            await image.writeAsync(imagePath);
+
+            const result = await db.query(
+                'INSERT INTO posts (user_id, image_url, description, location) VALUES ($1, $2, $3, $4) RETURNING *',
+                [user_id, imagePath, description, location]);
+            const post = result.rows[0];
+    
+            res.status(201).json({ success: true, message: 'Pubblicazione effettuata con successo!', post: post });
+    
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+        }
+        
     } else {
         return res.status(415).json({ success: false, message: "É necessario caricare un'immagine per pubblicare il post." }); 
-    }
-
-    try {
-        const result = await db.query(
-            'INSERT INTO posts (user_id, image_url, description, location) VALUES ($1, $2, $3, $4) RETURNING *',
-            [user_id, postImagePath, description, location]);
-        const post = result.rows[0];
-
-        res.status(201).json({ success: true, message: 'Pubblicazione effettuata con successo!', post: post });
-
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
     }
 });
 
