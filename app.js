@@ -45,9 +45,10 @@ const postsStorage = multer.diskStorage({
         cb(null, 'uploads/posts');
     },
     filename: function (req, file, cb) {
-        const username = req.body.username;
+        const username = req.user.username;
+        const randomDigits = moment().format('DDMMYYYY_HHmmss')
         const fileExtension = path.extname(file.originalname);
-        cb(null, `${username}${fileExtension}`);
+        cb(null, `${username}_${randomDigits}${fileExtension}`);
     }
 });
 
@@ -449,10 +450,6 @@ app.post('/api/addPost', postsUpload.single('image_url'), [
         .isLength({ max: 255 }).withMessage('Il luogo non puó contenere piú di 255 caratteri.')
 
 ], async (req, res) => {
-    if (!req.isAuthenticated()) {
-        return res.status(401).send("L'utente non è autenticato.");
-    }
-
     const validationErrors = validationResult(req);
     const { description, location } = req.body;
     const user_id = req.user.id;
@@ -463,7 +460,7 @@ app.post('/api/addPost', postsUpload.single('image_url'), [
     }
 
     if (req.file) {
-        postImagePath = `uploads/posts/${req.user.username}${moment().format('DDMMYYYY_HHmmss')}${path.extname(req.file.originalname)}`;
+        postImagePath = `uploads/posts/${req.user.username}_${moment().format('DDMMYYYY_HHmmss')}${path.extname(req.file.originalname)}`;
     } else {
         return res.status(415).json({ success: false, message: "É necessario caricare un'immagine per pubblicare il post." }); 
     }
