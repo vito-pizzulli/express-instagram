@@ -429,7 +429,11 @@ app.post('/api/updateProfile', upload.single('profile_pic_url'), [
 app.get('/api/posts', async (req, res) => {
     try {
         const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id ORDER BY posts.created_at DESC");
-        res.status(200).json(result.rows);
+        if (result.rows.length > 0) {
+            res.status(200).json(result.rows);
+        } else {
+            res.status(404).json({ message: "Nessun post trovato." });
+        }
 
     } catch (err) {
         console.error(err);
@@ -437,10 +441,30 @@ app.get('/api/posts', async (req, res) => {
     };
 });
 
-app.get('/api/userPosts', async (req, res) => {
+app.get('/api/:username', async (req, res) => {
+    const { username } = req.params;
     try {
-        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE posts.user_id = $1 ORDER BY posts.created_at DESC", [req.user.id]);
-        res.status(200).json(result.rows);
+        const result = await db.query("SELECT * FROM users WHERE username = $1", [username]);
+        if (result.rows.length > 0) {
+            return res.status(200).json(result.rows);
+        } else {
+            return res.status(404).json({ message: "Utente non trovato." });
+        }
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    }
+});
+
+app.get('/api/userPosts/:username', async (req, res) => {
+    const { username } = req.params;
+    try {
+        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE users.username = $1 ORDER BY posts.created_at DESC", [username]);
+        if (result.rows.length > 0) {
+            res.status(200).json(result.rows);
+        } else {
+            res.status(404).json({ message: "Nessun post trovato." });
+        }
 
     } catch (err) {
         console.error(err);
