@@ -13,6 +13,7 @@ import fs from 'fs';
 import multer from "multer";
 import moment from "moment";
 import Jimp from "jimp";
+import slugify from "slugify";
 
 const app = express();
 const port = 3001;
@@ -428,7 +429,7 @@ app.post('/api/updateProfile', upload.single('profile_pic_url'), [
 
 app.get('/api/posts', async (req, res) => {
     try {
-        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id ORDER BY posts.created_at DESC");
+        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id ORDER BY posts.created_at DESC");
         if (result.rows.length > 0) {
             res.status(200).json(result.rows);
         } else {
@@ -439,6 +440,23 @@ app.get('/api/posts', async (req, res) => {
         console.error(err);
         return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
     };
+});
+
+app.get('/api/posts/:username/:slug', async (req, res) => {
+    const { slug } = req.params;
+
+    try {
+        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE posts.slug = $1", [slug]);
+
+        if (result.rows.length > 0) {
+            return res.status(200).json(result.rows[0]);
+        } else {
+            return res.status(404).json({ message: "Post non trovato." });
+        }
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    }
 });
 
 app.get('/api/:username', async (req, res) => {
@@ -459,7 +477,7 @@ app.get('/api/:username', async (req, res) => {
 app.get('/api/userPosts/:username', async (req, res) => {
     const { username } = req.params;
     try {
-        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE users.username = $1 ORDER BY posts.created_at DESC", [username]);
+        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE users.username = $1 ORDER BY posts.created_at DESC", [username]);
         if (result.rows.length > 0) {
             res.status(200).json(result.rows);
         } else {
@@ -492,13 +510,18 @@ app.post('/api/addPost', upload.single('image_url'), [
 
     if (req.file) {
         try {
+            const timestamp = moment().format('DDMMYYYY_HHmmss');
+
+            const slugBase = `${req.user.username}_${timestamp}`;
+            const slug = slugify(slugBase, { lower: true, strict: true });
+
             const image = await Jimp.read(req.file.buffer);
-            const imagePath = `uploads/posts/${req.user.username}_${moment().format('DDMMYYYY_HHmmss')}.jpg`;
+            const imagePath = `uploads/posts/${req.user.username}${timestamp}.jpg`;
             await image.writeAsync(imagePath);
 
             const result = await db.query(
-                'INSERT INTO posts (user_id, image_url, description, location) VALUES ($1, $2, $3, $4) RETURNING *',
-                [user_id, imagePath, description, location]);
+                'INSERT INTO posts (user_id, image_url, description, location, slug) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+                [user_id, imagePath, description, location, slug]);
             const post = result.rows[0];
     
             res.status(201).json({ success: true, message: 'Pubblicazione effettuata con successo!', post: post });
