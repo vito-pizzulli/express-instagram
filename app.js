@@ -437,6 +437,17 @@ app.get('/api/posts', async (req, res) => {
     };
 });
 
+app.get('/api/userPosts', async (req, res) => {
+    try {
+        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE posts.user_id = $1 ORDER BY posts.created_at DESC", [req.user.id]);
+        res.status(200).json(result.rows);
+
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    };
+});
+
 app.post('/api/addPost', upload.single('image_url'), [
     body('description')
         .optional({ checkFalsy: true })
