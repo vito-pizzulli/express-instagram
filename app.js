@@ -170,7 +170,7 @@ app.post('/api/register', upload.single('profile_pic_url'), [
     }
 });
 
-app.post('/api/completeRegistration', upload.single('profile_pic_url'), [
+app.put('/api/completeRegistration', upload.single('profile_pic_url'), [
     body('username')
         .notEmpty().withMessage('Il campo username non puó essere vuoto.').bail()
         .trim()
@@ -253,7 +253,7 @@ app.post('/api/login', (req, res, next) => {
     })(req, res, next);
 });
 
-app.get('/api/logout', (req, res) => {
+app.post('/api/logout', (req, res) => {
     req.logout(function (err) {
         if (err) {
             console.error(err);
@@ -264,7 +264,7 @@ app.get('/api/logout', (req, res) => {
     });
 });
 
-app.post('/api/updateProfile', upload.single('profile_pic_url'), [
+app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
     body('email')
         .optional({ checkFalsy: true })
         .trim()
