@@ -8,7 +8,6 @@ import GoogleStrategy from "passport-google-oauth2";
 import session from "express-session";
 import env from "dotenv";
 import { body, validationResult } from 'express-validator';
-import path from 'path';
 import fs from 'fs';
 import multer from "multer";
 import moment from "moment";
@@ -428,13 +427,16 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
 });
 
 app.delete('/api/deleteProfile', async (req, res) => {
+    if (!req.user || !req.user.id) {
+        return res.status(403).json({ success: false, message: "Non autenticato o account non esistente." });
+    }
     const userId = req.user.id;
 
     try {
         await db.query('BEGIN');
 
-        const postsImages = await db.query('SELECT image_url FROM posts WHERE user_id = $1', [userId]);
-        postsImages.rows.forEach(row => {
+        const result = await db.query('SELECT image_url FROM posts WHERE user_id = $1', [userId]);
+        result.rows.forEach(row => {
             fs.unlink(row.image_url, (err) => {
                 if (err) {
                     console.error('Errore durante l\'eliminazione del file:', err);
@@ -581,14 +583,19 @@ app.delete('/api/deletePost/:id', async (req, res) => {
     try {
         const result = await db.query('SELECT image_url FROM posts WHERE id = $1', [id]);
 
-        const imageUrl = result.rows[0].image_url;
-        fs.unlink(imageUrl, (err) => {
-            if (err) {
-                console.error('Errore durante l\'eliminazione del file:', err);
-            }
-        });
-        await db.query('DELETE FROM posts WHERE id = $1', [id]);
-        res.status(200).json({ success: true, message: "Post eliminato con successo!" });
+        if (result.rows.length > 0) {
+            const imageUrl = result.rows[0].image_url;
+            fs.unlink(imageUrl, (err) => {
+                if (err) {
+                    console.error('Errore durante l\'eliminazione del file:', err);
+                }
+                });
+            await db.query('DELETE FROM posts WHERE id = $1', [id]);
+            res.status(200).json({ success: true, message: "Post eliminato con successo!" });
+        } else {
+            res.status(404).json({ success: false, message: "Post non trovato." });
+        }
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
