@@ -575,6 +575,26 @@ app.post('/api/addPost', upload.single('image_url'), [
     }
 });
 
+app.delete('/api/deletePost/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await db.query('SELECT image_url FROM posts WHERE id = $1', [id]);
+
+        const imageUrl = result.rows[0].image_url;
+        fs.unlink(imageUrl, (err) => {
+            if (err) {
+                console.error('Errore durante l\'eliminazione del file:', err);
+            }
+        });
+        await db.query('DELETE FROM posts WHERE id = $1', [id]);
+        res.status(200).json({ success: true, message: "Post eliminato con successo!" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
+    }
+});
+
 app.get('/auth/google',
     passport.authenticate("google", {
         scope: ["profile", "email"],
