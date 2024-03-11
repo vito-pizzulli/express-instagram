@@ -551,11 +551,11 @@ app.post('/api/addPost', upload.single('image_url'), [
         try {
             const timestamp = moment().format('DDMMYYYY_HHmmss');
 
-            const slugBase = `${req.user.username}_${timestamp}`;
+            const slugBase = `${req.user.id}_${timestamp}`;
             const slug = slugify(slugBase, { lower: true, strict: true });
 
             const image = await Jimp.read(req.file.buffer);
-            const imagePath = `uploads/posts/${req.user.username}${timestamp}.jpg`;
+            const imagePath = `uploads/posts/${req.user.id}${timestamp}.jpg`;
             await image.writeAsync(imagePath);
 
             const result = await db.query(
