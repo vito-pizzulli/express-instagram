@@ -427,6 +427,29 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
     }
 });
 
+app.delete('/api/deleteProfile', async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+        await db.query('BEGIN');
+        await db.query('DELETE FROM posts WHERE user_id = $1', [userId]);
+        await db.query('DELETE FROM users WHERE id = $1', [userId]);
+        await db.query('COMMIT');
+
+        req.logout(function (err) {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
+            }
+            res.status(200).json({ success: true, message: "Account eliminato con successo!" });
+        });
+    } catch (err) {
+        await db.query('ROLLBACK');
+        console.error('Errore durante l\'eliminazione dell\'utente e dei suoi post:', err);
+        res.status(500).json({ success: false, message: "Errore interno del server. Riprova più tardi." });
+    }
+});
+
 app.get('/api/posts', async (req, res) => {
     try {
         const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id ORDER BY posts.created_at DESC");
