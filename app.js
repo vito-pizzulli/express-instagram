@@ -432,6 +432,22 @@ app.delete('/api/deleteProfile', async (req, res) => {
 
     try {
         await db.query('BEGIN');
+
+        const postsImages = await db.query('SELECT image_url FROM posts WHERE user_id = $1', [userId]);
+        postsImages.rows.forEach(row => {
+            fs.unlink(row.image_url, (err) => {
+                if (err) {
+                    console.error('Errore durante l\'eliminazione del file:', err);
+                }
+            });
+        });
+
+        fs.unlink(req.user.profile_pic_url, (err) => {
+            if (err) {
+                console.error('Errore durante l\'eliminazione del file:', err);
+            }
+        });
+
         await db.query('DELETE FROM posts WHERE user_id = $1', [userId]);
         await db.query('DELETE FROM users WHERE id = $1', [userId]);
         await db.query('COMMIT');
