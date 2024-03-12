@@ -531,6 +531,22 @@ app.get('/api/userPosts/:username', async (req, res) => {
     };
 });
 
+app.get('/api/searchUsers/:wordToSearch', async (req, res) => {
+    const { wordToSearch } = req.params;
+    try {
+        const result = await db.query("SELECT * FROM users WHERE username ILIKE '%' || $1 || '%' ORDER BY LENGTH(username)", [wordToSearch]);
+        if (result.rows.length > 0) {
+            res.status(200).json(result.rows);
+        } else {
+            res.status(404).json({ message: "Nessun utente trovato." });
+        }
+
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
+    };
+});
+
 app.post('/api/addPost', upload.single('image_url'), [
     body('description')
         .optional({ checkFalsy: true })
