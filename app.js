@@ -404,10 +404,6 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
             queryCount++;
         }
 
-        if (queryCount === 1) {
-            return res.status(400).json({ success: false, message: "Nessuna modifica rilevata." });
-        }
-
         updateQuery = updateQuery.slice(0, -1);
 
         updateQuery += ` WHERE id = $${queryCount}`;
@@ -470,7 +466,7 @@ app.delete('/api/deleteProfile', async (req, res) => {
 
 app.get('/api/posts', async (req, res) => {
     try {
-        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id ORDER BY posts.created_at DESC");
+        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username, users.profile_pic_url FROM posts JOIN users ON posts.user_id = users.id ORDER BY posts.created_at DESC");
         if (result.rows.length > 0) {
             res.status(200).json(result.rows);
         } else {
