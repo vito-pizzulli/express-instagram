@@ -83,11 +83,11 @@ app.get('/api/status', (req, res) => {
 
 app.post('/api/register', upload.single('profile_pic_url'), [
     body('email')
-        .notEmpty().withMessage('Il campo email non puó essere vuoto.').bail()
+        .notEmpty().withMessage('Il campo e-mail non puó essere vuoto.').bail()
         .trim()
         .normalizeEmail()
-        .isEmail().withMessage('Inserisci un indirizzo email valido.')
-        .isLength({ max: 255 }).withMessage('L\'indirizzo email non puó contenere piú di 255 caratteri.'),
+        .isEmail().withMessage('Inserisci un indirizzo e-mail valido.')
+        .isLength({ max: 255 }).withMessage('L\'indirizzo e-mail non puó contenere piú di 255 caratteri.'),
 
     body('password')
         .notEmpty().withMessage('Il campo password non puó essere vuoto.').bail()
@@ -98,11 +98,11 @@ app.post('/api/register', upload.single('profile_pic_url'), [
         .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('La password deve contenere almeno un simbolo speciale.'),
 
     body('username')
-        .notEmpty().withMessage('Il campo username non puó essere vuoto.').bail()
+        .notEmpty().withMessage('Il campo nome utente non puó essere vuoto.').bail()
         .trim()
         .toLowerCase()
-        .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
-        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('L\'username può contenere solo lettere, numeri, underscore e punti.'),
+        .isLength({ min: 3, max: 30 }).withMessage('Il nome utente deve contenere tra 3 e 30 caratteri.')
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('Il nome utente può contenere solo lettere, numeri, underscore e punti.'),
 
     body('name')
         .notEmpty().withMessage('Il campo nome non puó essere vuoto.').bail()
@@ -126,7 +126,7 @@ app.post('/api/register', upload.single('profile_pic_url'), [
             ]);
         
             if (checkMailAvailable.rows.length > 0) {
-                availabilityErrors.push({ msg: `L'email ${email} é giá in uso.` });
+                availabilityErrors.push({ msg: `L'e-mail ${email} é giá in uso.` });
             }
     
             const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1", [
@@ -134,7 +134,7 @@ app.post('/api/register', upload.single('profile_pic_url'), [
             ]);
     
             if (checkUsernameAvailable.rows.length > 0) {
-                availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+                availabilityErrors.push({ msg: `Il nome utente ${username} é giá in uso.` });
             }
     
             if (availabilityErrors.length > 0) {
@@ -157,7 +157,7 @@ app.post('/api/register', upload.single('profile_pic_url'), [
                     console.error(err);
                     return res.status(500).json({ success: false, message: "Errore interno del server. Riprova piú tardi." });
                 }
-                res.status(201).json({ success: true, message: 'Registrazione effettuata con successo!', user: user });
+                res.status(201).json({ success: true, message: 'Iscrizione effettuata con successo!', user: user });
             });
     
         } catch (err) {
@@ -171,11 +171,11 @@ app.post('/api/register', upload.single('profile_pic_url'), [
 
 app.put('/api/completeRegistration', upload.single('profile_pic_url'), [
     body('username')
-        .notEmpty().withMessage('Il campo username non puó essere vuoto.').bail()
+        .notEmpty().withMessage('Il campo nome utente non puó essere vuoto.').bail()
         .trim()
         .toLowerCase()
-        .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
-        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('L\'username può contenere solo lettere, numeri, underscore e punti.'),
+        .isLength({ min: 3, max: 30 }).withMessage('Il nome utente deve contenere tra 3 e 30 caratteri.')
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('Il nome utente può contenere solo lettere, numeri, underscore e punti.'),
 
     body('name')
         .notEmpty().withMessage('Il campo nome non puó essere vuoto.').bail()
@@ -199,7 +199,7 @@ app.put('/api/completeRegistration', upload.single('profile_pic_url'), [
             ]);
     
             if (checkUsernameAvailable.rows.length > 0) {
-                availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+                availabilityErrors.push({ msg: `Il nome utente ${username} é giá in uso.` });
             }
     
             if (availabilityErrors.length > 0) {
@@ -224,7 +224,7 @@ app.put('/api/completeRegistration', upload.single('profile_pic_url'), [
             );
     
             const user = result.rows[0];
-            res.status(201).json({ success: true, message: 'Profilo completato con successo!', user: user });
+            res.status(201).json({ success: true, message: 'Iscrizione completata con successo!', user: user });
             
         } catch (err) {
             console.error(err);
@@ -268,8 +268,8 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
         .optional({ checkFalsy: true })
         .trim()
         .normalizeEmail()
-        .isEmail().withMessage('Inserisci un indirizzo email valido.')
-        .isLength({ max: 255 }).withMessage('L\'indirizzo email non puó contenere piú di 255 caratteri.'),
+        .isEmail().withMessage('Inserisci un indirizzo e-mail valido.')
+        .isLength({ max: 255 }).withMessage('L\'indirizzo e-mail non puó contenere piú di 255 caratteri.'),
 
     body('password')
         .optional({ checkFalsy: true })
@@ -283,8 +283,8 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
         .optional({ checkFalsy: true })
         .trim()
         .toLowerCase()
-        .isLength({ min: 3, max: 30 }).withMessage('L\'username deve contenere tra 3 e 30 caratteri.')
-        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('L\'username può contenere solo lettere, numeri, underscore e punti.'),
+        .isLength({ min: 3, max: 30 }).withMessage('Il nome utente deve contenere tra 3 e 30 caratteri.')
+        .matches(/^[a-zA-Z0-9_.]+$/).withMessage('Il nome utente può contenere solo lettere, numeri, underscore e punti.'),
 
     body('name')
         .optional({ checkFalsy: true })
@@ -337,7 +337,7 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
         ]);
 
         if (checkMailAvailable.rows.length > 0) {
-            availabilityErrors.push({ msg: `L'email ${email} é giá in uso.` });
+            availabilityErrors.push({ msg: `L'e-mail ${email} é giá in uso.` });
         }
 
         const checkUsernameAvailable = await db.query("SELECT * FROM users WHERE username = $1 AND id != $2", [
@@ -345,7 +345,7 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
         ]);
 
         if (checkUsernameAvailable.rows.length > 0) {
-            availabilityErrors.push({ msg: `L'username ${username} é giá in uso.` });
+            availabilityErrors.push({ msg: `Il nome utente ${username} é giá in uso.` });
         }
 
         if (availabilityErrors.length > 0) {
@@ -424,7 +424,7 @@ app.patch('/api/updateProfile', upload.single('profile_pic_url'), [
 
 app.delete('/api/deleteProfile', async (req, res) => {
     if (!req.user || !req.user.id) {
-        return res.status(403).json({ success: false, message: "Non autenticato o account non esistente." });
+        return res.status(403).json({ success: false, message: "Utente non autenticato o account non esistente." });
     }
     const userId = req.user.id;
 
@@ -577,7 +577,7 @@ app.post('/api/addPost', upload.single('image_url'), [
                 [user_id, imagePath, description, location, slug]);
             const post = result.rows[0];
     
-            res.status(201).json({ success: true, message: 'Pubblicazione effettuata con successo!', post: post });
+            res.status(201).json({ success: true, message: 'Post pubblicato con successo!', post: post });
     
         } catch (err) {
             console.error(err);
