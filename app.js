@@ -483,7 +483,7 @@ app.get('/api/posts/:username/:slug', async (req, res) => {
     const { slug } = req.params;
 
     try {
-        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username FROM posts JOIN users ON posts.user_id = users.id WHERE posts.slug = $1", [slug]);
+        const result = await db.query("SELECT posts.id, posts.user_id, posts.image_url, posts.description, posts.location, posts.slug, posts.created_at, users.username, users.profile_pic_url FROM posts JOIN users ON posts.user_id = users.id WHERE posts.slug = $1", [slug]);
 
         if (result.rows.length > 0) {
             return res.status(200).json(result.rows[0]);
