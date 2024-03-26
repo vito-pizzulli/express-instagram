@@ -1,9 +1,14 @@
 # Instagram - Node.js/Express
 
-<img src="public/screenshots/login-preview.png" width="600">
-<img src="public/screenshots/registration-preview.png" width="600">
-<img src="public/screenshots/user-profile-preview.png" width="600">
-<img src="public/screenshots/post-show-preview.png" width="600">
+<div align="center">
+    <img src="public/screenshots/login-preview.png" width="500">
+    <img src="public/screenshots/registration-preview.png" width="500">
+</div>
+
+<div align="center">
+    <img src="public/screenshots/user-profile-preview.png" width="500">
+    <img src="public/screenshots/post-show-preview.png" width="500">
+</div>
 
 ## Descrizione
 Questo progetto rappresenta il back-end di una web-app che emula la celebre piattaforma Instagram.
