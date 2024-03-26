@@ -1,13 +1,13 @@
 # Instagram - Node.js/Express
 
 <div align="center">
-    <img src="public/screenshots/login-preview.png" width="500">
-    <img src="public/screenshots/registration-preview.png" width="500">
+    <img src="public/screenshots/login-preview.png" width="400">
+    <img src="public/screenshots/registration-preview.png" width="400">
 </div>
 
 <div align="center">
-    <img src="public/screenshots/user-profile-preview.png" width="500">
-    <img src="public/screenshots/post-show-preview.png" width="500">
+    <img src="public/screenshots/user-profile-preview.png" width="400">
+    <img src="public/screenshots/post-show-preview.png" width="400">
 </div>
 
 ## Descrizione
